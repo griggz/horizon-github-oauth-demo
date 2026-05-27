@@ -47,7 +47,7 @@ async def get_repo_info(owner: str, repo: str) -> dict:
         owner: Repository owner (e.g. "PrefectHQ")
         repo: Repository name (e.g. "prefect")
     """
-    all_headers = get_http_headers()
+    all_headers = get_http_headers(include_all=True)
     auth_header = all_headers.get("authorization")
     if not auth_header:
         return {
