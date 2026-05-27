@@ -3,32 +3,38 @@ Minimal MCP server for testing Horizon OAuth brokering.
 
 Exposes a single tool that calls the GitHub API using the authenticated
 user's OAuth token. When hosted on Horizon, the OAuth flow is brokered
-by the platform.
-
-    export GITHUB_CLIENT_ID=...
-    export GITHUB_CLIENT_SECRET=...
-    python server.py
+by the platform — the server just reads the forwarded Authorization header.
 """
-
-import os
 
 import httpx
 from fastmcp import FastMCP
-from fastmcp.server.auth.providers.github import GitHubProvider
-from fastmcp.server.dependencies import get_access_token
+from fastmcp.server.dependencies import get_http_headers
 
-# FASTMCP_CLOUD_URL is injected by Horizon; fall back for local dev
-base_url = os.environ.get("FASTMCP_CLOUD_URL", "http://localhost:8001")
+mcp = FastMCP("github-stars")
 
-mcp = FastMCP(
-    "github-stars",
-    auth=GitHubProvider(
-        client_id=os.environ["GITHUB_CLIENT_ID"],
-        client_secret=os.environ["GITHUB_CLIENT_SECRET"],
-        base_url=base_url,
-        required_scopes=["repo"],
-    ),
-)
+# ---------------------------------------------------------------------------
+# Self-hosted alternative: run your own OAuth flow inside the server.
+#
+# If you're NOT fronting this with Horizon (or any gateway that brokers OAuth),
+# uncomment the block below and set GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET.
+# Then swap `get_http_headers()` in the tool for `get_access_token()`.
+#
+# import os
+# from fastmcp.server.auth.providers.github import GitHubProvider
+# from fastmcp.server.dependencies import get_access_token
+#
+# base_url = os.environ.get("FASTMCP_CLOUD_URL", "http://localhost:8001")
+#
+# mcp = FastMCP(
+#     "github-stars",
+#     auth=GitHubProvider(
+#         client_id=os.environ["GITHUB_CLIENT_ID"],
+#         client_secret=os.environ["GITHUB_CLIENT_SECRET"],
+#         base_url=base_url,
+#         required_scopes=["repo"],
+#     ),
+# )
+# ---------------------------------------------------------------------------
 
 
 @mcp.tool()
@@ -41,12 +47,12 @@ async def get_repo_info(owner: str, repo: str) -> dict:
         owner: Repository owner (e.g. "PrefectHQ")
         repo: Repository name (e.g. "prefect")
     """
-    token = get_access_token()
-    if token is None:
-        return {"error": "Not authenticated. Connect via OAuth first."}
+    auth_header = get_http_headers().get("authorization")
+    if not auth_header:
+        return {"error": "No Authorization header forwarded by Horizon."}
 
     headers = {
-        "Authorization": f"Bearer {token.token}",
+        "Authorization": auth_header,
         "Accept": "application/vnd.github.v3+json",
     }
 
