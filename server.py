@@ -47,9 +47,13 @@ async def get_repo_info(owner: str, repo: str) -> dict:
         owner: Repository owner (e.g. "PrefectHQ")
         repo: Repository name (e.g. "prefect")
     """
-    auth_header = get_http_headers().get("authorization")
+    all_headers = get_http_headers()
+    auth_header = all_headers.get("authorization")
     if not auth_header:
-        return {"error": "No Authorization header forwarded by Horizon."}
+        return {
+            "error": "No Authorization header forwarded by Horizon.",
+            "headers_seen": sorted(all_headers.keys()),
+        }
 
     headers = {
         "Authorization": auth_header,
